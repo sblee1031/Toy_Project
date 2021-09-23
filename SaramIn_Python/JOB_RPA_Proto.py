@@ -1,5 +1,4 @@
 
-
 from datetime import datetime
 from selenium import webdriver
 from haversine import haversine
@@ -41,13 +40,12 @@ published = "2021-09-07"
 # keyword = ['python', 'sql', 'data engineer']
 # print(published)
 
-
-
 #사람인 api
-def Saramin(keyword):
+def Saramin(keyword, published):
     # 10 110
-    URL = "https://oapi.saramin.co.kr/job-search?access-key=%s&keywords=%s&loc_cd=%s&published=%s&count=110&fields=count" % (key,keyword, loc_cd, published)
-    
+    print('사람인 검색 단어-->',keyword, published)
+    URL = "https://oapi.saramin.co.kr/job-search?access-key=%s&keywords=%s&loc_cd=%s&published_min=%s&count=110&fields=count" % (key,keyword, loc_cd, published)
+    print
     # API를 통해 Json 형태로 데이터 추출
     response = requests.get(URL)
     data = response.json()
@@ -75,18 +73,17 @@ def Saramin(keyword):
         dt_FromTs = new_data[i]['expiration-timestamp']
         expiration_date.append(str(datetime.fromtimestamp(int(dt_FromTs))))
         apply_cnt.append(new_data[i]['apply-cnt'])
-
+#     print("=>",len(company))
     # 2차원 리스트로 변환
     com_list = []
     for i in range(len(company)):
         com_list.insert(i, [company[i], title[i], location[i], expiration_date[i], com_url[i], apply_cnt[i]])
-
     return com_list
 
 
 # bot.sendMessage(chat_id=id, text={len(company)}+"개의 공고를 찾았습니다. 잠시 후 보내드리겠습니다.")
 # webdriver 접속
-def jobplanet(company,a):
+def jobplanet(company,a, index):
     print('job')
     driver = webdriver.Chrome('chromedriver')
     # driver = webdriver.Chrome('chromedriver', chrome_options=options) # headless 적용
@@ -121,78 +118,79 @@ def jobplanet(company,a):
     # auth_bttn.click()
 
     # 회사명 검색
-    for i in range(len(a)):
-        driver.get("https://www.jobplanet.co.kr/")
+#     for i in range(len(a)):
+    driver.get("https://www.jobplanet.co.kr/")
+    driver.implicitly_wait(5)
+    driver.get("https://www.jobplanet.co.kr/companies/cover")
+    driver.implicitly_wait(5)
+    search_com = driver.find_element_by_css_selector('#search_bar_search_query')
+    search_com.send_keys(a)
+    # driver.find_element_by_css_selector('#search_form > div > div > button').click()
+    driver.find_element_by_css_selector('#search_form > div > button').click()
+    driver.implicitly_wait(5)
+    print(a)
+
+    # 예외 처리
+    try:
+        driver.find_element_by_css_selector('#mainContents > div:nth-child(1) > div > div.result_company_card > div.is_company_card > div > a').click()
         driver.implicitly_wait(5)
-        driver.get("https://www.jobplanet.co.kr/companies/cover")
-        driver.implicitly_wait(5)
-        search_com = driver.find_element_by_css_selector('#search_bar_search_query')
-        search_com.send_keys(a[i])
-        # driver.find_element_by_css_selector('#search_form > div > div > button').click()
-        driver.find_element_by_css_selector('#search_form > div > button').click()
-        driver.implicitly_wait(5)
-        print(a[i])
 
-        # 예외 처리
-        try:
-            driver.find_element_by_css_selector('#mainContents > div:nth-child(1) > div > div.result_company_card > div.is_company_card > div > a').click()
-            driver.implicitly_wait(5)
+        # 점수
+        # score = driver.find_element_by_css_selector('body > div.body_wrap > div.cmp_hd > div.new_top_bnr > div > div.top_bnr_wrap > div > div > div.company_info_sec > div.company_info_box > div.about_company > div.grade.jply_ico_star > span').text
+        score = driver.find_element_by_css_selector('body > div.body_wrap > div.cmp_hd > div.new_top_bnr > div > div.top_bnr_wrap > div > div > div.company_info_sec > div.company_info_box > div.about_company > div.score_area.type_total_year > div > span').text
+        # 현재 페이지의 후기
+        dg = driver.page_source # 현재 페이지
+        soup = BeautifulSoup(dg, 'html.parser')
+        comment_raw = soup.find_all("h2", {"class" : "us_label"})
+        comments = [comment.text for comment in comment_raw]
+        for j in range(len(comments)):
+            comments[j] = comments[j].replace("\nBEST\n      \"", "")
+            comments[j] = comments[j].replace("\n", " ")
+            comments[j] = comments[j].replace("\"     ", "")
 
-            # 점수
-            # score = driver.find_element_by_css_selector('body > div.body_wrap > div.cmp_hd > div.new_top_bnr > div > div.top_bnr_wrap > div > div > div.company_info_sec > div.company_info_box > div.about_company > div.grade.jply_ico_star > span').text
-            score = driver.find_element_by_css_selector('body > div.body_wrap > div.cmp_hd > div.new_top_bnr > div > div.top_bnr_wrap > div > div > div.company_info_sec > div.company_info_box > div.about_company > div.score_area.type_total_year > div > span').text
-            # 현재 페이지의 후기
-            dg = driver.page_source # 현재 페이지
-            soup = BeautifulSoup(dg, 'html.parser')
-            comment_raw = soup.find_all("h2", {"class" : "us_label"})
-            comments = [comment.text for comment in comment_raw]
-            for j in range(len(comments)):
-                comments[j] = comments[j].replace("\nBEST\n      \"", "")
-                comments[j] = comments[j].replace("\n", " ")
-                comments[j] = comments[j].replace("\"     ", "")
+        company[index].append(score)
+        if len(comments) != 0:
+            company[index].append(comments)
+        else:
+            company[index].append([])
 
-            company[i].append(score)
-            if len(comments) != 0:
-                company[i].append(comments)
-            else:
-                company[i].append([])
-
-        except: # 회사가 존재하지 않을경우
-            company[i].append('없음') # 평점 0 
-            company[i].append([])
-            # company[i].append(["없음"]) # 후기 빈 리스트로 추가
-
+    except: # 회사가 존재하지 않을경우
+        company[index].append('없음') # 평점 0 
+        company[index].append([])
+        # company[i].append(["없음"]) # 후기 빈 리스트로 추가
+    driver.quit()
 # mail에 첨부할 텍스트 전처리
 def extract_mail(company):
     list_num = ['①', '②', '③', '④', '⑤']
     mail_text = []
-    for i in range(len(company)):
-        mail_text.append('회    사 : {com}'.format(com = company[i][0]))
-        mail_text.append('공 고 명 : {com}'.format(com = company[i][1]))
-        mail_text.append('위    치 : {com}'.format(com = company[i][2]))
-        mail_text.append('지 원 자 : {com}명'.format(com = company[i][5]))
-        mail_text.append('마 감 일 : {com}'.format(com = company[i][3]))
-        mail_text.append('평    점 : {com}'.format(com = company[i][6]))
-        mail_text.append('공    고 : {com}'.format(com = company[i][4]))
+    print('mail_text->',company)
+#     for i in range(len(company)):
+    mail_text.append('회    사 : {com}'.format(com = company[0]))
+    mail_text.append('공 고 명 : {com}'.format(com = company[1]))
+    mail_text.append('위    치 : {com}'.format(com = company[2]))
+    mail_text.append('지 원 자 : {com}명'.format(com = company[5]))
+    mail_text.append('마 감 일 : {com}'.format(com = company[3]))
+    mail_text.append('평    점 : {com}'.format(com = company[6]))
+    mail_text.append('공    고 : {com}'.format(com = company[4]))
 
-        if len(company[i][7]) == 0:
-            mail_text.append('후    기 : {com}'.format(com = "없음"))
-        else:
-            mail_text.append('후    기 :')
-            for j in range(len(company[i][7])):
-                mail_text.append('{num} {com}'.format(num = list_num[j], com = company[i][7][j]))
-        mail_text.append(' ')
+    if len(company[7]) == 0:
+        mail_text.append('후    기 : {com}'.format(com = "없음"))
+    else:
+        mail_text.append('후    기 :')
+        for j in range(len(company[7])):
+            mail_text.append('{num} {com}'.format(num = list_num[j], com = company[7][j]))
+    mail_text.append(' ')
 
     mail_text = "\n".join(mail_text) + "\n"
     return mail_text
 
 
 #텔레그램 챗봇
-token = '텔레그램키'
+token = '2015300103:AAFDieSY7jKQ5ouXSi4agzmEq6Vc7CRCkAU'
 # id = "2001756271"
  
 bot = telegram.Bot(token)
-# bot.sendMessage(chat_id=id, text="'공고' 라고 입력하시면 정보를 받으실 수 있습니다.")
+
  
 # updater
 updater = Updater(token=token, use_context=True)
@@ -200,66 +198,54 @@ dispatcher = updater.dispatcher
 updater.start_polling()
 
 company = ''
+word = ''
+day = ''
 
 # 사용자가 보낸 메세지를 읽어들이고, 답장을 보내줍니다.
 # 아래 함수만 입맛에 맞게 수정해주면 됩니다. 다른 것은 건들 필요없어요.
 def handler(update, context):
-#     id = ''
-#          if update.message.chat.id !='':
         print(update.message.chat.id)
         print(update.message.text)
-#         keyword
-#         published
+        global word
+        global day
         id = update.message.chat.id
         user_text = update.message.text # 사용자가 보낸 메세지를 user_text 변수에 저장합니다.
-#         if user_text == "공고": # 사용자가 보낸 메세지가 "안녕"이면?
-#             bot.send_message(chat_id=id, text="날짜를 알려주세요. ex)2020-09-02")
-           
-#             user_text =''
-#             print("keyword" +keyword + "published " + published)
-            
-#         if len(user_text) == 10:
-#             published = user_text
-# #             global published=''
-#             bot.send_message(chat_id=id, text="검색내용을 입력해주세요. ex)자바, 백엔드")
-#             user_text ='' 
-#             print("keyword" +  keyword + "published " +published)
-            
-        if user_text == "자바":
-            #사람인 데이터 호출
-            # Job Planet에 사용할 회사명 리스트
-#             print("keyword" + keyword + "published " + published)
-            keyword = user_text
-#             published = "2020-09-09"
-            company = Saramin(keyword) # 회사명, 공고명, 지역명, 마감일, URL
+        if user_text == "공고": # 사용자가 보낸 메세지가 "안녕"이면?
+            bot.send_message(chat_id=id, text="등록날짜(최소값)를 알려주세요. ex)2021-09-02")
+            user_text =''
+            print("keyword" +word + "published " + day)
+        if len(user_text) == 19:
+            day = user_text
+            bot.send_message(chat_id=id, text="검색내용을 입력해주세요. 2자 이상 \n ex)자바, 백엔드")
+            user_text ='' 
+            print("keyword" +  word + "published " +day)
+        if len(user_text)>1:      #사람인 데이터 호출   # Job Planet에 사용할 회사명 리스트
+            word = user_text
+            print("keyword" +  word + "published " +day)
+            company = Saramin(word, day) # 회사명, 공고명, 지역명, 마감일, URL
             com_count = len(company)
-            bot.send_message(chat_id=id, text=str(com_count)+"개 공고를 찾았습니다. 크롤링 중입니다. 좀 기다려주세요ㅠㅜ")
-            # company = Saramin('data engineer')
+            bot.send_message(chat_id=id, text=str(com_count)+"개 공고를 찾았습니다. 크롤링 중입니다. 좀 기다려주세요ㅠㅜ..순차적으로 발송됩니다.")
             print(len(company))
             print(company)
             a = []
             for i in range(len(company)):
                 a.append(company[i][0])
-#             a
-            jobplanet(company,a)
-            data = extract_mail(company)
-            print(data)
-            bot.send_message(chat_id=id,text=data) # 답장 보내기
+                print('a->',a)
+                jobplanet(company,company[i][0], i)
+                print('company->', company[i])
+                data = extract_mail(company[i])
+                bot.send_message(chat_id=id, text=data)
+#             jobplanet(company,a)
             
-#         if user_text !='':
-#             keyword = user_text
-#             user_text ='' 
-#             bot.send_message(chat_id=id, text="검색시작 이라고 입력해주세요.")
+            print("====")
+#             print(len(data))
+#             bot.send_message(chat_id=id,text=data) # 답장 보내기
+        if user_text !='':
+            keyword = user_text
+            user_text ='' 
+            bot.sendMessage(chat_id=id, text="'공고' 라고 입력하시면 정보를 받으실 수 있습니다.")
         elif user_text == "뭐해": # 사용자가 보낸 메세지가 "뭐해"면?
             bot.send_message(chat_id=id, text="그냥 있어") # 답장 보내기
 
 echo_handler = MessageHandler(Filters.text, handler)
 dispatcher.add_handler(echo_handler)
-
-
-
-# In[ ]:
-
-
-
-
