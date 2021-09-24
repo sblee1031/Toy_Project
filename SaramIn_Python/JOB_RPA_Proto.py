@@ -41,15 +41,15 @@ published = "2021-09-07"
 # print(published)
 
 #사람인 api
-def Saramin(keyword, published):
+def Saramin(keyword, count):
     # 10 110
-    print('사람인 검색 단어-->',keyword, published)
-    URL = "https://oapi.saramin.co.kr/job-search?access-key=%s&keywords=%s&loc_cd=%s&published_min=%s&count=110&fields=count" % (key,keyword, loc_cd, published)
-    print
+    print('사람인 검색 단어-->',keyword, count)
+    URL = "https://oapi.saramin.co.kr/job-search?access-key=%s&keywords=%s&loc_cd=%s&loc_mcd=%s&count=110&fields=count" % (key,keyword,loc_cd, loc_mcd)
+    print(URL)
     # API를 통해 Json 형태로 데이터 추출
     response = requests.get(URL)
     data = response.json()
-
+    print("사람인응답=>",data)
     # 데이터 전처리
     new_data = []
     for i in range(len(data['jobs']['job'])):
@@ -199,7 +199,7 @@ updater.start_polling()
 
 company = ''
 word = ''
-day = ''
+count = ''
 
 # 사용자가 보낸 메세지를 읽어들이고, 답장을 보내줍니다.
 # 아래 함수만 입맛에 맞게 수정해주면 됩니다. 다른 것은 건들 필요없어요.
@@ -207,28 +207,25 @@ def handler(update, context):
         print(update.message.chat.id)
         print(update.message.text)
         global word
-        global day
+        global count #요청받을 공고 개수
         id = update.message.chat.id
         user_text = update.message.text # 사용자가 보낸 메세지를 user_text 변수에 저장합니다.
         if user_text == "공고": # 사용자가 보낸 메세지가 "안녕"이면?
-            bot.send_message(chat_id=id, text="등록날짜(최소값)를 알려주세요. ex)2021-09-02")
+            bot.send_message(chat_id=id, text="받으실 공고개수를 선택해주세요. 10개미만 ")
             user_text =''
-            print("keyword" +word + "published " + day)
-        if len(user_text) == 19:
-            day = user_text
+        if len(user_text) == 1:
+            count = user_text
             bot.send_message(chat_id=id, text="검색내용을 입력해주세요. 2자 이상 \n ex)자바, 백엔드")
             user_text ='' 
-            print("keyword" +  word + "published " +day)
         if len(user_text)>1:      #사람인 데이터 호출   # Job Planet에 사용할 회사명 리스트
             word = user_text
-            print("keyword" +  word + "published " +day)
-            company = Saramin(word, day) # 회사명, 공고명, 지역명, 마감일, URL
+            company = Saramin(word, count) # 회사명, 공고명, 지역명, 마감일, URL
             com_count = len(company)
             bot.send_message(chat_id=id, text=str(com_count)+"개 공고를 찾았습니다. 크롤링 중입니다. 좀 기다려주세요ㅠㅜ..순차적으로 발송됩니다.")
             print(len(company))
             print(company)
             a = []
-            for i in range(len(company)):
+            for i in range(int(count)):
                 a.append(company[i][0])
                 print('a->',a)
                 jobplanet(company,company[i][0], i)
@@ -249,3 +246,7 @@ def handler(update, context):
 
 echo_handler = MessageHandler(Filters.text, handler)
 dispatcher.add_handler(echo_handler)
+
+
+
+# In[ ]:
