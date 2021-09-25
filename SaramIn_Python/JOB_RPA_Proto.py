@@ -103,11 +103,11 @@ def jobplanet(company,a, index):
 
     # id 입력
     username_input = driver.find_element_by_css_selector('#email')
-    username_input.send_keys("my702@naver.com")
+    username_input.send_keys("@")
 
     # password 입력
     password_input = driver.find_element_by_css_selector('#pass')
-    password_input.send_keys("fblack9057") 
+    password_input.send_keys("") 
     driver.find_element_by_css_selector('#loginbutton').click()
     driver.implicitly_wait(5)
 
@@ -186,8 +186,8 @@ def extract_mail(company):
 
 
 #텔레그램 챗봇
-token = '2015300103:AAFDieSY7jKQ5ouXSi4agzmEq6Vc7CRCkAU'
-# id = "2001756271"
+token = '201530'
+# id = ""
  
 bot = telegram.Bot(token)
 
