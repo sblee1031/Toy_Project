@@ -15,17 +15,18 @@ import boto3
 import smtplib
 from bs4 import BeautifulSoup
 from selenium.webdriver.common.keys import Keys
-
+from PIL import Image as pil#이미지 처리 pip install pillow
+from selenium.webdriver import ActionChains#스크롤처리
 import telegram
 from telegram.ext import Updater
 from telegram.ext import MessageHandler, Filters
 
 #텔레그램 공고요청
-token = '텔레그램API'
+token = '텔레그램 키'
 bot = telegram.Bot(token=token)
 updates = bot.getUpdates()
-for u in updates:
-    print(u.message.chat.id)
+# for u in updates:
+#     print(u.message.chat.id)
    
 # for u in updates:
 #         chat = u.message.text
@@ -34,11 +35,24 @@ for u in updates:
 
 # Saramin API
 key = "사람인키" # 엑세스 키값
-loc_cd = "101000+102180" # 지역코드 -> 서울 전체 + 분당
+loc_cd = "101000" # 지역코드 -> 서울 전체
+loc_mcd = "102180" # 지역코드 -> 성남시
 # published = str(year) + "-" + str(month) + "-" + str(day) # 등록일 yyyy-mm-dd
-published = "2021-09-07"
+# published = "2021-09-07"
 # keyword = ['python', 'sql', 'data engineer']
 # print(published)
+
+# Google Maps
+gmaps_key = "구글맵키"
+gmaps = googlemaps.Client(key=gmaps_key)
+home = '성남 송현초등학교'
+
+#Chrome Driver Options
+options = webdriver.ChromeOptions()
+options.add_argument('headless')
+options.add_argument('window-size=1920x1080')
+options.add_argument("disable-gpu")
+
 
 #사람인 api
 def Saramin(keyword, count):
@@ -49,7 +63,7 @@ def Saramin(keyword, count):
     # API를 통해 Json 형태로 데이터 추출
     response = requests.get(URL)
     data = response.json()
-    print("사람인응답=>",data)
+#     print("사람인응답=>",data)
     # 데이터 전처리
     new_data = []
     for i in range(len(data['jobs']['job'])):
@@ -103,11 +117,11 @@ def jobplanet(company,a, index):
 
     # id 입력
     username_input = driver.find_element_by_css_selector('#email')
-    username_input.send_keys("@")
+    username_input.send_keys("잡플래닛ID")
 
     # password 입력
     password_input = driver.find_element_by_css_selector('#pass')
-    password_input.send_keys("") 
+    password_input.send_keys("잡플래닛PW") 
     driver.find_element_by_css_selector('#loginbutton').click()
     driver.implicitly_wait(5)
 
@@ -128,7 +142,7 @@ def jobplanet(company,a, index):
     # driver.find_element_by_css_selector('#search_form > div > div > button').click()
     driver.find_element_by_css_selector('#search_form > div > button').click()
     driver.implicitly_wait(5)
-    print(a)
+#     print(a)
 
     # 예외 처리
     try:
@@ -184,11 +198,161 @@ def extract_mail(company):
     mail_text = "\n".join(mail_text) + "\n"
     return mail_text
 
+# 입력한 위치의 위도, 경도를 출력
+def val_lat_lng(loc):
+    user_info = gmaps.geocode(loc, language = 'ko')
+    user_geo = user_info[0].get('geometry')
+    user_lat = user_geo['location']['lat'] # 위도
+    user_lng = user_geo['location']['lng'] # 경도
+    loc_val = [user_lat, user_lng]
+    return loc_val
+
+#구글맵
+def loc_map(com):
+    loc_com = val_lat_lng(com) # 회사 위도 & 경도
+    loc_home = val_lat_lng(home) # 집 위도 & 경도
+    loc_center = [round((loc_com[0] + loc_home[0])/2, 7), round((loc_com[1] + loc_home[1])/2, 7)]
+    
+    # 길찾기
+    print(home,com)
+    directions_result = gmaps.directions(home, com, mode = "transit") # departure_time = datetime.now()
+    
+    # 집과 회사의 거리차에 따른 zoom
+    hc_distance = round(haversine(loc_home, loc_com), 2)
+    if hc_distance < 6:
+        zoom_start = 14
+    elif hc_distance >= 6 and hc_distance < 12:
+        zoom_start = 13
+    elif hc_distance >= 12 and hc_distance < 24:
+        zoom_start = 12
+    elif hc_distance >= 24 and hc_distance < 48:
+        zoom_start = 11
+    else:
+        zoom_start = 10
+        #print(hc_distance, zoom_start)
+
+    g_map = folium.Map(location = loc_center, zoom_start = zoom_start)
+    duration = directions_result[0]['legs'][0]['duration']['text'].replace(" hours", "시간").replace(" hour", "시간").replace(" mins", "분") # 소요 시간
+    distance = directions_result[0]['legs'][0]['distance']['text'].replace(" km", "km") # 거리
+
+    # Polyline Decode
+    for i in range(len(directions_result[0]['legs'][0]['steps'])):
+        a = directions_result[0]['legs'][0]['steps'][i]
+        b = polyline.decode(a['polyline']['points'])
+        # c = (a['start_location']['lat'], a['end_location']['lng'])
+        # folium.Marker(c).add_to(g_map)
+        folium.PolyLine(b, color="red", weight=8, opacity=1).add_to(g_map)
+
+    folium.Marker(
+        location = (directions_result[0]['legs'][0]['start_location']['lat'], directions_result[0]['legs'][0]['start_location']['lng']),
+        popup = 'Home',
+        icon = folium.Icon(color='blue',icon='star')    
+    ).add_to(g_map)
+
+    folium.Marker(
+        location = (directions_result[0]['legs'][0]['end_location']['lat'], directions_result[0]['legs'][0]['end_location']['lng']),
+        tooltip = 'company',
+        popup = '''
+            Company
+            Duration : %s
+            Distance : %s
+        ''' % (directions_result[0]['legs'][0]['duration']['text'], directions_result[0]['legs'][0]['distance']['text']),
+        icon = folium.Icon(color='blue',icon='star')
+    ).add_to(g_map)
+
+    html = '''
+    <div style="font-size: 24pt">Distance : {a}</div>
+    <div style="font-size: 24pt">Duration : {b}</div>
+    '''.format(a=distance, b = duration)
+
+    folium.Marker(
+        location = loc_center,
+        icon = DivIcon(
+            icon_size=(600,36),
+            icon_anchor=(0,0),
+            html = html,
+        )
+    ).add_to(g_map)
+    
+    return g_map
+
+# 지도 html을 png 파일로 생성
+def make_png(g_map, company_name):
+    delay = 5
+    fn = 'map.html'
+    tmpurl='file://{path}/{mapfile}'.format(path=os.getcwd(),mapfile=fn)
+    g_map.save(fn)
+    browser = webdriver.Chrome('chromedriver', chrome_options=options) # headless 적용
+    browser.get(tmpurl)
+    #Give the map tiles some time to load
+    time.sleep(delay)
+    browser.save_screenshot('{day}_{com}.png'.format(day = "map", com = company_name)) # 2020-01-01_회사명.png
+    browser.quit()
+    
+#CreditJob 메서드
+def Kredit_Job(a):
+    #webdriver 접속
+    print(a)
+    driver = webdriver.Chrome('chromedriver')
+#     driver = webdriver.Chrome(chromedriver,options=options) # headless 적용
+    driver.get("https://kreditjob.com/")
+#     driver.maximize_window()
+    driver.set_window_size(1920, 1080)
+    driver.implicitly_wait(5)
+    
+    #회사명 검색 
+    for i in range(len(a)):
+        driver.get("https://kreditjob.com/")
+        driver.implicitly_wait(5)
+        search=driver.find_element_by_css_selector('div.body-container>div.home-wrapper>div.col-xs-12>div.home-search-box-container>div.search-box-wrapper>div.search-box-query-box>div.react-autosuggest__container>input.search-query')
+        search.send_keys( a[i].replace("(주)",""))
+        driver.find_element_by_css_selector('div.body-container>div.home-wrapper>div.col-xs-12>div.home-search-box-container>div.search-box-wrapper>div.search-box-query-box>div.react-autosuggest__container>input.search-query').send_keys(Keys.ENTER)        
+        tmp_cname=driver.find_element_by_css_selector('div.body-container>div.company-container>div.company-wrapper>div.company-contents>section.company-label-container>div.label-container>div.info-box>div.company-label>span.company-name')      
+        try:
+            #스크롤할 부분 찾기
+            print(1)
+            some_tag = driver.find_element_by_css_selector('div.body-container>div.company-container>div.company-wrapper>div.company-contents>section.company-salary-container>div>p.wikiInfo')
+            driver.implicitly_wait(5)
+            
+            #스크롤 내리기 
+            print(2)
+            action = ActionChains(driver)
+            action.move_to_element(some_tag).perform()
+            driver.implicitly_wait(5)
+            
+            #편집할 이미지 
+            print(3)
+            driver.save_screenshot('salary'+str(i)+'.png')
+            print(a[i]+'캡쳐완료')
+            
+            #이미지 전체크기 확인
+            pil_im=pil.open('salary'+str(i)+'.png')
+            
+            #원하는 이미지영역 크기 확인 
+            element = driver.find_element_by_css_selector('div.body-container>div.company-container>div.company-wrapper>div.company-contents>section.company-salary-container>div')
+            location=element.location
+            size=element.size
+            print(location,size)
+            
+            #이미지 영역 계산
+            left = location['x']
+            top = location ['y']
+            right = left+size['width']
+            bottom = top+size['height']
+            area = (left, 217, right, bottom)
+            
+            #이미지 잘라내기
+            pil_im = pil_im.crop(area)
+            print(a[i]+'잘라내기 완료')
+            pil_im.save(a[i]+'.png')
+            
+        except:
+             print(a[i]+'이미지 처리 실패')
+                                         
+    return a[i]+'.png';
+
 
 #텔레그램 챗봇
-token = '201530'
-# id = ""
- 
 bot = telegram.Bot(token)
 
  
@@ -223,15 +387,28 @@ def handler(update, context):
             com_count = len(company)
             bot.send_message(chat_id=id, text=str(com_count)+"개 공고를 찾았습니다. 크롤링 중입니다. 좀 기다려주세요ㅠㅜ..순차적으로 발송됩니다.")
             print(len(company))
-            print(company)
+#             print(company)
             a = []
             for i in range(int(count)):
                 a.append(company[i][0])
                 print('a->',a)
                 jobplanet(company,company[i][0], i)
-                print('company->', company[i])
+#                 print('company->', company[i])
                 data = extract_mail(company[i])
+                image = Kredit_Job(a)
+                photo_list = []
+                photo_list.append(telegram.InputMediaPhoto(open("./"+image, "rb")))
+                try:
+                    g_map = loc_map('엔키아')
+                    make_png(g_map, '엔키아')
+#                     to_s3(i, com) # URL
+                    print("map 성공")
+                    photo_list.append(telegram.InputMediaPhoto(open("./"+"map_"+"엔키아.png", "rb")))
+                except:
+#                     company[i].append("없음")
+                    print("map 실패")
                 bot.send_message(chat_id=id, text=data)
+                bot.sendMediaGroup(chat_id=id, media=photo_list)
 #             jobplanet(company,a)
             
             print("====")
@@ -247,6 +424,3 @@ def handler(update, context):
 echo_handler = MessageHandler(Filters.text, handler)
 dispatcher.add_handler(echo_handler)
 
-
-
-# In[ ]:
