@@ -399,11 +399,11 @@ def handler(update, context):
                 photo_list = []
                 photo_list.append(telegram.InputMediaPhoto(open("./"+image, "rb")))
                 try:
-                    g_map = loc_map('엔키아')
-                    make_png(g_map, '엔키아')
+                    g_map = loc_map(a[0])
+                    make_png(g_map, a[0])
 #                     to_s3(i, com) # URL
                     print("map 성공")
-                    photo_list.append(telegram.InputMediaPhoto(open("./"+"map_"+"엔키아.png", "rb")))
+                    photo_list.append(telegram.InputMediaPhoto(open("./"+"map_"+a[0]+".png", "rb")))
                 except:
 #                     company[i].append("없음")
                     print("map 실패")
@@ -423,4 +423,3 @@ def handler(update, context):
 
 echo_handler = MessageHandler(Filters.text, handler)
 dispatcher.add_handler(echo_handler)
-
