@@ -3,7 +3,6 @@
 ## 💻 개발환경
 ### * Python, Jupyter
 
-
 ### 이용방법
 1. 텔레그램 챗봇 친구추가하기
     * 챗봇 이름 : @Saramin_alarm_bot
